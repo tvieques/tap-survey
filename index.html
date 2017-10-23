@@ -52,15 +52,13 @@
 
           <template v-if="!this.hasEndpoint || this.editing == 'endpoint'">  
             <input type='text' id='endpoint' placeholder='Enter API Endpoint' v-model='endpoint' @blur='clear' />
-          </template>
-          <template v-else>
+          </template><template v-else>
             <p id='endpoint' :title='endpoint' @click='edit($event,"endpoint")'>&#x1f517;</p>
           </template>  
 
           <template v-if="!this.hasToken || this.editing == 'token'">  
             <input type='text' id='token' placeholder='Enter API Token' maxlength='32' v-model='token' @blur='clear' />
-          </template>
-          <template v-else>
+          </template><template v-else>
             <p id='token' :title='token' @click='edit($event,"token")'>&#x1f512;</p>
           </template>  
  
@@ -73,11 +71,9 @@
             <legend>Offers</legend>
 
             <template v-if="!this.hasOffer">  
-              <span id='offer'>No survey available.</span>
-            </template>
-            
-            <template v-else>
-              <span id='offer'>
+              <span>No survey available.</span>
+            </template><template v-else>
+              <span>
                 <span>{{offer.min}} to {{offer.max}} {{offer.currency}}</span>
                 <a :href='offer.offer_url' target="_blank">Take Survey</a>
                 <span v-if="offer.abandon_url"> | <a :href='offer.abandon_url'>Skip</a></span>
@@ -128,7 +124,6 @@
         },
 
         mounted : function(){
-
           this.token  = query['t'] || '9a7fb35fb5e0daa7dadfaccd41bb7ad1';
           this.userid = query['u'] || null;
           this.endpoint    = 'https://www.tapresearch.com/supply_api/surveys/offer'
@@ -138,7 +133,6 @@
         },
 
         methods : {
-
           validate : function(){
             this.hasUser     = ( !!this['userid'] && this.userid.length <= 32 && this.userid.length > 0 );  
             this.hasToken    = ( !!this['token'] && this.token.length == 32 );
@@ -156,14 +150,12 @@
               if( !this.hasUser ){
                 let u = document.getElementById('userid');
                 u.placeholder = 'User Id is required';
-                u.className += 'error';
                 u.focus();
               }
             }
           },
 
           request : function(){
-
               var self = this;
               this.$http.jsonp( this.endpoint, { params: {api_token:this.token, user_identifier:this.userid}, timeout:TIMEOUT} )
               .then( res => {
