@@ -1,0 +1,249 @@
+<!-- Tony | tvieques@gmail.com -->
+<!doctype html>
+<html id='ui' class='no-js'>
+  <head>
+    <meta charset="utf-8">
+    <title>Survey Client</title>
+    <style>
+      html { font-family:arial; font-size:12px; } 
+      
+      input, p, button  { 
+        float:left; display:block; 
+      }
+
+      button {
+        height:32px;
+        margin-top:10px;
+      }
+
+      input, p { 
+        margin: 10px 10px  10px 0;  
+        border:1px solid #ccc; 
+        width:200px; height:20px; 
+        padding:5px; 
+        font-family: inherit; font-size: inherit; 
+        line-height:21px;
+      }
+
+      p{ border:1px dotted #eee; 
+         width:25px; 
+         color:#333; 
+         opacity:.8; 
+         text-align:center;
+         font-size:20px;
+         cursor:pointer;
+      }
+      
+      input#token {
+        color:#333;
+        width:225px;
+      }
+      input#endpoint {
+        width:325px;
+      }
+      ::placeholder{ color:#FA6563; }
+
+    </style>
+  </head>
+  <body>
+
+    <div id='app'></div>
+  <!-- ################################################################## -->
+    <!-- survey link widget -->
+    <script type="text/x-template" id="tpl-survey">
+      <form @submit='submit'>
+        <fieldset>
+          <legend>API Query</legend>
+
+          <template v-if="!this.hasEndpoint || this.editing == 'endpoint'">  
+            <input type='text' id='endpoint' placeholder='Enter API Endpoint' v-model='endpoint' @blur='clear' />
+          </template>
+          <template v-else>
+            <p id='endpoint' :title='endpoint' @click='edit($event,"endpoint")'>&#x1f517;</p>
+          </template>  
+
+          <template v-if="!this.hasToken || this.editing == 'token'">  
+            <input type='text' id='token' placeholder='Enter API Token' maxlength='32' v-model='token' @blur='clear' />
+          </template>
+          <template v-else>
+            <p id='token' :title='token' @click='edit($event,"token")'>&#x1f512;</p>
+          </template>  
+ 
+
+        <input type='text' id='userid' v-model='userid' />
+        <button>Submit</button>
+        </fieldset>
+
+        <template v-if="this.didRequest" >
+          <fieldset>
+            <legend>Offers</legend>
+
+            <template v-if="!this.hasOffer">  
+              <span id='offer'>No survey available.</span>
+            </template>
+            <template v-else>
+              <span id='offer'>
+                <span>{{offer.min}} to {{offer.max}} {{offer.currency}}</span>
+                <a :href='offer.offer_url' target="_blank">Take Survey</a>
+                <span v-if="offer.abandon_url"> | <a :href='offer.abandon_url'>Skip</a></span>
+              </span>
+            </template>
+
+          </fieldset>
+        </template>
+      </form>
+    </script>
+    <script type='text/javascript' src='https://unpkg.com/vue@2.4.4/dist/vue.min.js'></script>
+    <script type='text/javascript' src='https://unpkg.com/vue-resource@1.3.4/dist/vue-resource.min.js'></script>
+    <script>
+
+      //parse query string
+      const query = ( (str)=>{
+        "use strict";
+          if (str === ""){ return null; }
+          let query = {};
+          for (let i = 0; i < str.length; ++i){
+            let p=str[i].split("=");
+            if (p.length !== 2){ continue; }
+            query[p[0]] = decodeURIComponent(p[1].replace(/\+/g, ' '));
+          }
+          return query;
+      })( window.location.search.substr(1).split('&') );
+
+      const TIMEOUT = 3000;
+      const app = new Vue({
+
+        el : '#app',
+        template : '#tpl-survey',
+
+        data : { 
+          userid    : null,
+          token     : null,
+          endpoint  : null,
+          editing   : null,
+          offer     : null,
+          error     : null,
+          hasToken  : false,
+          hasUser   : false,
+          hasEndpoint : false,
+          hasOffer    : false,
+          didRequest  : false,
+        },
+
+        mounted : function(){
+
+          this.token  = query['t'] || '9a7fb35fb5e0daa7dadfaccd41bb7ad1';
+          this.userid = query['u'] || null;
+          this.endpoint    = 'https://www.tapresearch.com/supply_api/surveys/offer'
+          this.hasEndpoint = true;
+          this.validate();
+
+        },
+
+        methods : {
+
+          validate : function(){
+            this.hasUser     = ( !!this['userid'] && this.userid.length <= 32 && this.userid.length > 0 );  
+            this.hasToken    = ( !!this['token'] && this.token.length == 32 );
+            this.hasEndpoint = ( !!this['endpoint'] );
+            return ( [ this.hasToken, this.hasEndpoint, this.hasUser ] );
+          },
+
+          submit  : function(e){
+            e.preventDefault();  
+            let test = this.validate();
+            if( test.reduce( (res,v) => res && v, true) === true ){ 
+              this.request();
+            }else{
+              console.error(test);
+              if( !this.hasUser ){
+                let u = document.getElementById('userid');
+                u.placeholder = 'User Id is required';
+                u.className += 'error';
+                u.focus();
+              }
+            }
+          },
+
+          request : function(){
+
+              var self = this;
+              this.$http.jsonp( this.endpoint, { params: {api_token:this.token, user_identifier:this.userid}, timeout:TIMEOUT} )
+              .then( res => {
+
+                let body = res.body;               
+                self.didRequest = true;
+                if( body['has_offer'] ){
+                  let offer = {
+                    min         : body.message_hash.min, 
+                    max         : body.message_hash.max,
+                    currency    : body.message_hash.currency,
+                    offer_url   : body.offer_url,
+                    abandon_url : body.abandon_url,
+                  }
+                  self.offer = Object.assign({}, self.offer, offer);
+                  self.hasOffer = true;
+                }else{
+                  self.hasOffer = false;
+                }
+
+              }, res => {// error callback
+                console.error(res.status, res.statusText);
+                self.didRequest = false;
+                switch(res.status){
+                  case 408:
+                    msg = `Request timed out`;
+                  break;
+                  default:
+                    msg = 'Server could not process API request';
+                }
+                alert( `${msg}. Please try again! \n(error:${res.status}, timeout:${TIMEOUT})`);
+              });
+
+          },
+
+          edit(e){ 
+            let el = e.target;
+            let id = el.id;
+            this.editing = id;
+            setTimeout( ()=>{
+              let u = document.getElementById(id);
+              u.focus();
+              u.style.color = '#3399FF';
+            },0);
+          },
+
+          clear(e){
+            let el = e.target;
+            let id = el.id;
+            this.validate();
+            switch(id){
+              case 'token':
+                if(this.hasToken){
+                  setTimeout( ()=>{
+                    if( this.editing == 'token' ) this.editing=null;
+                  },70);
+                }else{
+                  setTimeout( ()=>{
+                    let u = document.getElementById(id);
+                    u.style.color = 'red';
+                  },0);
+                }
+              break;
+              case 'endpoint':
+                if(this.hasEndpoint){
+                  setTimeout( ()=>{
+                    if( this.editing == 'endpoint' ) this.editing=null;
+                  },70);
+                }
+              break;
+              default:
+                this.editing=null;
+            }
+            
+          }
+        }
+      });
+    </script>
+  </body>
+</html>
